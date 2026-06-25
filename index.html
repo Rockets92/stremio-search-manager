@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ricerca Riordinata · Configura</title>
+<title>Ricerca Riordinata · Stremio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/style.css" />
@@ -12,176 +12,239 @@
 <div class="wrap">
   <header class="masthead">
     <p class="eyebrow">Stremio · Ricerca Riordinata</p>
-    <h1>Decidi l'ordine delle righe di ricerca.</h1>
-    <p class="lede">Aggiungi gli addon tra cui cerchi, mettili nell'ordine che vuoi e ottieni un addon personale da installare. I risultati arrivano sempre dalle fonti originali: qui decidi solo la sequenza.</p>
-    <nav class="tabs">
-      <a class="tab" href="/" aria-current="page">1 · Ordina</a>
-      <a class="tab" href="/setup.html">2 · Disattiva i doppioni</a>
-    </nav>
+    <h1>Riordina la ricerca, in un colpo solo.</h1>
+    <p class="lede">Accedi una volta: arrivano i tuoi addon, riordini le righe come vuoi, spegni quelle che non ti servono. Un pulsante toglie i doppioni dagli originali e installa l'addon riordinato. La Home resta com'è.</p>
   </header>
 
-  <section class="step">
-    <div class="step-head">
-      <span class="step-num">01</span>
-      <div><h2 class="step-title">Aggiungi una fonte</h2>
-      <p class="step-sub">Incolla l'URL del manifest di un addon (finisce in <code>/manifest.json</code>).</p></div>
+  <div class="banner warn">
+    Le credenziali restano nel tuo browser e parlano <strong>solo</strong> con l'API ufficiale di Stremio (api.strem.io): non passano da questo server né vengono salvate.
+  </div>
+
+  <!-- STEP 1: LOGIN -->
+  <section class="step" id="loginStep">
+    <div class="step-head"><span class="step-num">01</span>
+      <div><h2 class="step-title">Accedi al tuo account Stremio</h2>
+      <p class="step-sub">Email e password, oppure una AuthKey se preferisci.</p></div>
     </div>
     <div class="card">
-      <label class="field" for="murl">URL manifest</label>
+      <label class="field" for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="tu@esempio.it" />
+      <div style="height:10px"></div>
+      <label class="field" for="pass">Password</label>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <div style="height:12px"></div>
+      <button id="login" class="primary">Accedi e carica gli addon</button>
+      <hr class="sep" style="margin:18px 0" />
+      <label class="field" for="authkey">…oppure incolla una AuthKey</label>
       <div class="row-inline">
-        <input id="murl" type="text" placeholder="https://esempio.addon/manifest.json" autocomplete="off" />
-        <button id="add" class="primary">Aggiungi</button>
+        <input id="authkey" type="text" placeholder="authKey" autocomplete="off" />
+        <button id="useKey">Usa</button>
       </div>
-      <div id="addMsg"></div>
+      <div id="authMsg"></div>
     </div>
   </section>
 
-  <section class="step">
-    <div class="step-head">
-      <span class="step-num">02</span>
-      <div><h2 class="step-title">Ordina le righe</h2>
-      <p class="step-sub">Ogni riga è un catalogo. Il numero è la posizione nella ricerca. Spegni quelle che non ti servono.</p></div>
+  <!-- STEP 2: ORDER -->
+  <section class="step" id="orderStep" style="display:none">
+    <div class="step-head"><span class="step-num">02</span>
+      <div><h2 class="step-title">Ordina le righe della ricerca</h2>
+      <p class="step-sub">Il numero è la posizione. Trascina con ↑ ↓, rinomina, spegni quelle che non vuoi.</p></div>
     </div>
     <div id="list" class="sources"></div>
-    <div id="emptyState" class="empty">Nessuna fonte ancora. Aggiungine una qui sopra.</div>
+    <div id="warnProtected"></div>
   </section>
 
-  <section class="step">
-    <div class="step-head">
-      <span class="step-num">03</span>
-      <div><h2 class="step-title">Genera e installa</h2>
-      <p class="step-sub">Crea il tuo addon personale con quest'ordine.</p></div>
+  <!-- STEP 3: APPLY -->
+  <section class="step" id="applyStep" style="display:none">
+    <div class="step-head"><span class="step-num">03</span>
+      <div><h2 class="step-title">Applica e installa</h2>
+      <p class="step-sub">Toglie la ricerca agli originali e installa l'addon riordinato.</p></div>
     </div>
     <div class="card">
-      <label class="field" for="addonName">Nome dell'addon (facoltativo)</label>
+      <label class="field" for="addonName">Nome dell'addon</label>
       <input id="addonName" type="text" placeholder="Ricerca Riordinata" autocomplete="off" />
-      <div style="height:12px"></div>
-      <button id="gen" class="primary">Genera URL d'installazione</button>
-      <div id="out"></div>
+      <div style="height:14px"></div>
+      <div class="btn-row" style="margin-bottom:14px">
+        <button id="backup" class="ghost">Scarica backup</button>
+        <span class="note muted" id="backupNote" style="align-self:center">Scarica il backup per abilitare “Applica”.</span>
+      </div>
+      <button id="apply" class="primary" disabled>Applica e installa</button>
+      <div id="applyMsg"></div>
     </div>
-    <p class="note" style="margin-top:16px">Dopo aver installato questo addon, vai al passo <a href="/setup.html">2 · Disattiva i doppioni</a> per togliere la ricerca dagli addon originali, altrimenti vedrai le righe doppie.</p>
   </section>
 </div>
 
 <script>
 const $ = (s) => document.querySelector(s);
-let rows = []; // {uid_up, utype, type, name, src, srcName, on}
+const API = 'https://api.strem.io/api/';
+let authKey = null;
+let collection = [];   // addons completi dell'account
+let rows = [];         // righe cercabili: {addonIdx, src, addonName, utype, uid_up, type, name, on}
+let didBackup = false;
 
+function banner(el, kind, html){ el.innerHTML = '<div class="banner '+kind+'">'+html+'</div>'; }
+function isProtected(a){ return !!(a.flags && a.flags.protected); }
+function searchableCatalogs(a){
+  const cats = (a.manifest && a.manifest.catalogs) || [];
+  return cats.filter(c =>
+    (Array.isArray(c.extra) && c.extra.some(e => e && e.name === 'search')) ||
+    (Array.isArray(c.extraSupported) && c.extraSupported.includes('search')));
+}
 function b64url(str){
   const bytes = new TextEncoder().encode(str);
   let bin=''; for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-function isSearchable(cat){
-  if (Array.isArray(cat.extra)) return cat.extra.some(e => e && e.name === 'search');
-  if (Array.isArray(cat.extraSupported)) return cat.extraSupported.includes('search');
-  return false;
+async function apiPost(method, body){
+  const r = await fetch(API + method, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return r.json();
 }
-function banner(el, kind, html){ el.innerHTML = '<div class="banner '+kind+'">'+html+'</div>'; }
 
-async function addAddon(){
-  const url = $('#murl').value.trim();
-  const msg = $('#addMsg');
-  if (!url){ banner(msg,'err','Inserisci un URL.'); return; }
-  banner(msg,'warn','Leggo il manifest…');
+async function login(){
+  const email = $('#email').value.trim(), pass = $('#pass').value, msg = $('#authMsg');
+  if (!email || !pass){ banner(msg,'err','Inserisci email e password.'); return; }
+  banner(msg,'warn','Accesso in corso…');
   try {
-    const r = await fetch('/api/manifest?url=' + encodeURIComponent(url));
-    const m = await r.json();
-    if (m.error) throw new Error(m.error);
-    const cats = Array.isArray(m.catalogs) ? m.catalogs.filter(isSearchable) : [];
-    if (!cats.length){ banner(msg,'warn','Questo addon non ha cataloghi con ricerca. Niente da aggiungere.'); return; }
-    let added = 0;
-    for (const c of cats){
-      const key = url+'|'+c.type+'|'+c.id;
-      if (rows.some(x => x._key === key)) continue;
-      rows.push({
-        _key: key,
-        uid_up: c.id,
-        utype: c.type,
-        type: c.type,
-        name: c.name || (m.name+' '+c.type),
-        src: url,
-        srcName: m.name || '(addon)',
-        on: true,
-      });
-      added++;
-    }
-    $('#murl').value = '';
-    banner(msg,'ok','Aggiunti '+added+' cataloghi da “'+(m.name||'addon')+'”.');
-    render();
-  } catch(e){
-    banner(msg,'err','Non riesco a leggere questo addon: '+e.message);
-  }
+    const data = await apiPost('login', { email, password: pass });
+    const key = data && data.result && data.result.authKey;
+    if (!key) throw new Error((data && data.error && data.error.message) || 'credenziali non valide');
+    authKey = key; $('#pass').value = '';
+    await loadCollection();
+  } catch(e){ banner(msg,'err','Accesso fallito: '+e.message+'. Se è un problema di CORS, prova con la AuthKey.'); }
+}
+async function useKey(){
+  const k = $('#authkey').value.trim(), msg = $('#authMsg');
+  if (!k){ banner(msg,'err','Incolla una AuthKey.'); return; }
+  authKey = k; await loadCollection();
 }
 
-function move(i, d){
-  const j = i + d;
-  if (j < 0 || j >= rows.length) return;
-  [rows[i], rows[j]] = [rows[j], rows[i]];
-  render();
+async function loadCollection(){
+  const msg = $('#authMsg');
+  banner(msg,'warn','Carico i tuoi addon…');
+  try {
+    const data = await apiPost('addonCollectionGet', { type:'AddonCollectionGet', authKey, update:true });
+    const list = data && data.result && data.result.addons;
+    if (!Array.isArray(list)) throw new Error((data && data.error && data.error.message) || 'risposta inattesa');
+    collection = list;
+
+    rows = [];
+    let protectedSearch = [];
+    list.forEach((a, idx) => {
+      const cats = searchableCatalogs(a);
+      if (!cats.length) return;
+      if (isProtected(a)) { protectedSearch.push((a.manifest&&a.manifest.name)||a.transportName); return; }
+      cats.forEach(c => rows.push({
+        addonIdx: idx, src: a.transportUrl, addonName: (a.manifest&&a.manifest.name)||'(addon)',
+        utype: c.type, uid_up: c.id, type: c.type, name: c.name || ((a.manifest&&a.manifest.name)+' '+c.type), on: true,
+      }));
+    });
+
+    if (!rows.length){ banner(msg,'err','Non ho trovato addon con ricerca da gestire.'); return; }
+    banner(msg,'ok','Caricati '+rows.length+' righe cercabili da '+list.length+' addon.');
+    $('#loginStep').style.display = 'none';
+    $('#orderStep').style.display = 'block';
+    $('#applyStep').style.display = 'block';
+
+    if (protectedSearch.length){
+      $('#warnProtected').innerHTML = '<div class="banner warn">Questi addon sono protetti e non modificabili: <strong>'+protectedSearch.join(', ')+'</strong>. La loro riga di ricerca resterà nella posizione decisa da Stremio.</div>';
+    }
+    render();
+  } catch(e){ banner(msg,'err','Caricamento non riuscito: '+e.message); }
 }
+
+function move(i,d){ const j=i+d; if(j<0||j>=rows.length)return; [rows[i],rows[j]]=[rows[j],rows[i]]; render(); }
 function render(){
-  const list = $('#list');
-  $('#emptyState').style.display = rows.length ? 'none' : 'block';
-  list.innerHTML = '';
-  rows.forEach((row, i) => {
+  const list = $('#list'); list.innerHTML='';
+  rows.forEach((row,i) => {
     const el = document.createElement('div');
     el.className = 'src' + (row.on ? '' : ' off');
     el.innerHTML = `
       <div class="rank">${String(i+1).padStart(2,'0')}</div>
       <div>
         <div class="src-name"><input data-i="${i}" class="nm" type="text" value="${row.name.replace(/"/g,'&quot;')}" /></div>
-        <div class="src-meta">${row.srcName} · ${row.utype}/${row.uid_up}</div>
+        <div class="src-meta">${row.addonName} · ${row.utype}/${row.uid_up}</div>
       </div>
       <div class="src-ctrls">
         <span class="tag">${row.type}</span>
         <button class="icon" data-up="${i}" title="Su">↑</button>
         <button class="icon" data-down="${i}" title="Giù">↓</button>
         <button class="icon ghost" data-toggle="${i}" title="Accendi/spegni">${row.on ? '◉' : '◯'}</button>
-        <button class="icon ghost" data-del="${i}" title="Rimuovi">✕</button>
       </div>`;
     list.appendChild(el);
   });
-  list.querySelectorAll('input.nm').forEach(inp => inp.oninput = e => { rows[+e.target.dataset.i].name = e.target.value; });
-  list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1));
-  list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, +1));
+  list.querySelectorAll('input.nm').forEach(inp => inp.oninput = e => rows[+e.target.dataset.i].name = e.target.value);
+  list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up,-1));
+  list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down,+1));
   list.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { const i=+b.dataset.toggle; rows[i].on=!rows[i].on; render(); });
-  list.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del,1); render(); });
 }
 
-function generate(){
-  const out = $('#out');
+function downloadBackup(){
+  const blob = new Blob([JSON.stringify(collection,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stremio-addons-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  didBackup = true; $('#backupNote').textContent='Backup scaricato ✓'; $('#apply').disabled=false;
+}
+
+function stripSearch(manifest){
+  const m = JSON.parse(JSON.stringify(manifest));
+  (m.catalogs||[]).forEach(c => {
+    if (Array.isArray(c.extra)) c.extra = c.extra.filter(e => !(e && e.name==='search'));
+    if (Array.isArray(c.extraSupported)) c.extraSupported = c.extraSupported.filter(x => x!=='search');
+    if (Array.isArray(c.extraRequired)) c.extraRequired = c.extraRequired.filter(x => x!=='search');
+  });
+  return m;
+}
+
+async function apply(){
+  const msg = $('#applyMsg');
   const active = rows.filter(r => r.on);
-  if (!active.length){ banner(out,'err','Accendi almeno una fonte.'); return; }
+  if (!active.length){ banner(msg,'err','Accendi almeno una riga.'); return; }
+  if (!didBackup){ banner(msg,'err','Scarica prima il backup.'); return; }
+  banner(msg,'warn','Applico le modifiche…');
+
+  // 1) configurazione dell'aggregatore (solo righe accese, nell'ordine attuale)
   const cfg = {
     id: Math.random().toString(36).slice(2,8),
     name: ($('#addonName').value.trim() || 'Ricerca Riordinata'),
-    catalogs: active.map((r, i) => ({
-      uid: 'c' + i, name: r.name, type: r.type,
-      src: r.src, utype: r.utype, uid_up: r.uid_up,
-    })),
+    catalogs: active.map((r,i) => ({ uid:'c'+i, name:r.name, type:r.type, src:r.src, utype:r.utype, uid_up:r.uid_up })),
   };
   const blob = b64url(JSON.stringify(cfg));
   const installUrl = location.origin + '/' + blob + '/manifest.json';
-  const deep = 'stremio://' + installUrl.replace(/^https?:\/\//, '');
-  const web = 'https://web.stremio.com/#/addons?addon=' + encodeURIComponent(installUrl);
-  out.innerHTML = `
-    <div class="output">
-      <div class="note"><strong>Il tuo addon è pronto.</strong> Installalo, poi disattiva i doppioni al passo 2.</div>
-      <div class="url-box">${installUrl}</div>
-      <div class="btn-row">
-        <button class="primary" id="copyUrl">Copia URL</button>
-        <a href="${deep}"><button>Apri in Stremio (app)</button></a>
-        <a href="${web}" target="_blank" rel="noopener"><button class="ghost">Apri in Stremio Web</button></a>
-      </div>
-    </div>`;
-  $('#copyUrl').onclick = () => { navigator.clipboard.writeText(installUrl); $('#copyUrl').textContent='Copiato ✓'; };
+  const types = [...new Set(cfg.catalogs.map(c=>c.type))];
+  const aggManifest = {
+    id: 'com.cloudflare.ricerca-riordinata.'+cfg.id, version:'1.0.0', name: cfg.name,
+    description:'Righe della ricerca nell\u0027ordine scelto da te.',
+    resources:['catalog'], types, idPrefixes:[],
+    catalogs: cfg.catalogs.map(c => ({ type:c.type, id:c.uid, name:c.name, extra:[{name:'search',isRequired:true}] })),
+    behaviorHints:{ configurable:true, configurationRequired:false },
+  };
+  const aggDescriptor = { transportUrl: installUrl, transportName: cfg.name, manifest: aggManifest, flags:{} };
+
+  // 2) addon di provenienza a cui togliere la ricerca
+  const sourceIdx = new Set(active.map(r => r.addonIdx));
+
+  // 3) nuova collezione: rimuovo vecchi aggregatori di questo dominio, tolgo la ricerca alle fonti, aggiungo l'aggregatore
+  const next = collection
+    .filter(a => !(a.transportUrl && a.transportUrl.startsWith(location.origin)))
+    .map((a, idx) => sourceIdx.has(idx) ? { ...a, manifest: stripSearch(a.manifest) } : a);
+  next.push(aggDescriptor);
+
+  try {
+    const data = await apiPost('addonCollectionSet', { type:'AddonCollectionSet', authKey, addons: next });
+    if (data && data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    collection = next;
+    const deep = 'stremio://' + installUrl.replace(/^https?:\/\//,'');
+    msg.innerHTML = '<div class="banner ok"><strong>Fatto.</strong> Ricerca tolta agli originali e addon riordinato installato. <strong>Riavvia Stremio</strong> per vederlo.</div>'
+      + '<div class="output"><div class="note">Se l\u0027addon non comparisse, installalo a mano:</div><div class="url-box">'+installUrl+'</div>'
+      + '<div class="btn-row"><a href="'+deep+'"><button>Apri in Stremio</button></a><button id="copyUrl" class="ghost">Copia URL</button></div></div>';
+    const cp = document.getElementById('copyUrl'); if (cp) cp.onclick = () => { navigator.clipboard.writeText(installUrl); cp.textContent='Copiato ✓'; };
+    $('#apply').disabled = true;
+  } catch(e){ banner(msg,'err','Modifica non riuscita: '+e.message+'. La tua collezione non è stata cambiata; puoi ripristinare dal backup.'); }
 }
 
-$('#add').onclick = addAddon;
-$('#murl').addEventListener('keydown', e => { if (e.key === 'Enter') addAddon(); });
-$('#gen').onclick = generate;
-render();
-</script>
-</body>
-</html>
+$('#login').onclick = login;
+$('#useKey').onclick = useKey;
+$('#backup').onclick = downloadBackup;
+$('#apply').onclick = apply;

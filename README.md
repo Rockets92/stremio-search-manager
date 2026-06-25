@@ -1,77 +1,70 @@
 # Ricerca Riordinata per Stremio
 
 Un addon personale che mostra le righe della ricerca **nell'ordine che decidi tu**, senza
-toccare l'ordine della Home. I risultati arrivano sempre dalle fonti originali: questo
-addon fa solo da "direttore d'orchestra" che le mette in fila come vuoi.
+toccare l'ordine della Home. I risultati arrivano sempre dalle fonti originali: questo addon
+fa solo da "direttore d'orchestra" che le mette in fila come vuoi.
 
-Il progetto è composto da due parti, entrambe servite gratis da Cloudflare Pages:
-
-- **`/` (Ordina)** – aggiungi gli addon tra cui cerchi, li ordini, generi l'URL da installare.
-- **`/setup.html` (Disattiva i doppioni)** – toglie la ricerca agli addon originali, così a
-  rispondere è solo il tuo addon riordinato. Gli addon restano installati e la Home non cambia.
+Tutto avviene in **una sola pagina**: accedi una volta, arriva la lista dei tuoi addon,
+riordini le righe, e un pulsante toglie i doppioni dagli originali e installa l'addon
+riordinato.
 
 ---
 
 ## 1. Pubblicarlo su Cloudflare Pages (gratis)
 
-Ti serve un account Cloudflare (gratuito). Due modi:
+Serve un account Cloudflare (gratuito). Due modi:
 
-### Modo A – Caricamento diretto (il più semplice)
-1. Vai su **dash.cloudflare.com → Workers & Pages → Create → Pages → Upload assets**.
+### Modo A - Caricamento diretto (il più semplice)
+1. **dash.cloudflare.com → Workers & Pages → Create → Pages → Upload assets**.
 2. Trascina **il contenuto di questa cartella** (i file, non la cartella che li contiene).
 3. Dai un nome al progetto e premi **Deploy**.
 4. Otterrai un indirizzo tipo `https://tuo-progetto.pages.dev`.
 
-### Modo B – Da repository Git
+### Modo B - Da repository Git
 1. Carica questi file in un repo GitHub/GitLab.
-2. Su Cloudflare: **Create → Pages → Connect to Git**, scegli il repo.
-3. Build command: *(lascia vuoto)* · Output directory: `/` (la radice).
+2. Cloudflare: **Create → Pages → Connect to Git**, scegli il repo.
+3. Build command: *(vuoto)* · Output directory: `/`.
 4. **Deploy.**
 
-> Le Functions nella cartella `functions/` vengono attivate da Cloudflare in automatico:
-> non serve configurare nulla.
+Le Functions nella cartella `functions/` si attivano in automatico, non serve configurarle.
 
 ---
 
-## 2. Usarlo
+## 2. Usarlo (una pagina sola)
 
-### Passo 1 — Ordina (`https://tuo-progetto.pages.dev/`)
-1. Incolla l'URL del manifest di ogni addon che usi (finisce in `/manifest.json`).
-   Se non li ricordi, li trovi elencati nel Passo 2 dopo l'accesso.
-2. Riordina le righe con le frecce ↑ ↓, rinominale se vuoi, spegni quelle che non ti servono.
-3. **Genera URL d'installazione** e premi **Apri in Stremio**.
+Apri `https://tuo-progetto.pages.dev/`:
 
-### Passo 2 — Disattiva i doppioni (`/setup.html`)
-1. Accedi con email/password Stremio (oppure incolla una AuthKey).
-2. **Scarica il backup** (rete di sicurezza: ripristinabile in qualsiasi momento).
-3. Spunta gli addon di cui hai usato le fonti nel Passo 1.
-4. **Applica** e riavvia Stremio.
+1. **Accedi** con email/password Stremio (oppure incolla una AuthKey).
+2. Arriva la lista dei tuoi addon, già divisa in **righe** cercabili. Riordinale con ↑ ↓,
+   rinominale, spegni quelle che non vuoi.
+3. Dai un nome all'addon, **Scarica il backup**, poi premi **Applica e installa**.
+4. Riavvia Stremio.
 
-Risultato: nella ricerca vedi solo le tue righe, nell'ordine scelto. La Home resta identica.
+Il pulsante fa due cose insieme: toglie la ricerca agli addon originali (così niente righe
+doppie) e installa il tuo addon riordinato nella collezione. La Home resta identica.
 
 ---
 
 ## Note importanti
 
-- **Reversibile.** Per riattivare la ricerca su un addon, basta reinstallarlo dal suo URL
-  originale: Stremio riscarica il manifest completo. Oppure ripristina dal backup scaricato.
-- **Addon protetti.** Quelli ufficiali (es. Cinemeta) non si possono modificare: se uno di
-  essi è tra le tue fonti, la sua riga di ricerca originale resterà visibile.
-- **Aggiornamenti.** Se reinstalli o aggiorni un addon a cui avevi tolto la ricerca, la
-  ricerca gli "torna": ripassa dal Passo 2 per quell'addon.
-- **Privacy.** Email/password (o AuthKey) vengono usate dal tuo browser per parlare solo con
-  l'API ufficiale di Stremio (`api.strem.io`). Non passano da Cloudflare né vengono salvate.
-- **Configurazione nell'URL.** Le tue scelte d'ordine sono codificate nell'URL d'installazione
-  stesso: non c'è database, niente da mantenere. Se cambi ordine, generi un nuovo URL e
-  reinstalli.
+- **Reversibile.** Per riattivare la ricerca su un addon, reinstallalo dal suo URL originale,
+  oppure ripristina dal backup scaricato (file JSON della tua collezione di prima).
+- **Addon protetti.** Quelli ufficiali (es. Cinemeta) non si possono modificare: se uno è tra
+  le tue fonti, la sua riga di ricerca resterà nella posizione decisa da Stremio. La pagina te
+  lo segnala.
+- **Aggiornamenti.** Se reinstalli/aggiorni un addon a cui avevi tolto la ricerca, la ricerca
+  gli "torna": ripassa dalla pagina e riapplica.
+- **Privacy.** Email/password (o AuthKey) restano nel tuo browser e parlano solo con l'API
+  ufficiale di Stremio (`api.strem.io`). Non passano da Cloudflare né vengono salvate.
+- **Niente database.** L'ordine è codificato nell'URL stesso dell'addon. Se rifai la procedura
+  con un ordine diverso, il vecchio aggregatore di questo dominio viene sostituito in automatico.
 
 ## Struttura dei file
 ```
 .
 ├── functions/[[path]].js   backend: manifest + proxy ordinato della ricerca
-├── index.html              interfaccia "Ordina"
-├── setup.html              interfaccia "Disattiva i doppioni"
-├── style.css               stile condiviso
+├── index.html              l'unica pagina: accesso, riordino, applica+installa
+├── style.css               stile
 ├── _routes.json            instradamento statico vs Functions
 └── README.md               questo file
 ```

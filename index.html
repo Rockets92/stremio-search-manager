@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ricerca Riordinata · Configura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Stremio · Ricerca Riordinata</p>
+    <h1>Decidi l'ordine delle righe di ricerca.</h1>
+    <p class="lede">Aggiungi gli addon tra cui cerchi, mettili nell'ordine che vuoi e ottieni un addon personale da installare. I risultati arrivano sempre dalle fonti originali: qui decidi solo la sequenza.</p>
+    <nav class="tabs">
+      <a class="tab" href="/" aria-current="page">1 · Ordina</a>
+      <a class="tab" href="/setup.html">2 · Disattiva i doppioni</a>
+    </nav>
+  </header>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">01</span>
+      <div><h2 class="step-title">Aggiungi una fonte</h2>
+      <p class="step-sub">Incolla l'URL del manifest di un addon (finisce in <code>/manifest.json</code>).</p></div>
+    </div>
+    <div class="card">
+      <label class="field" for="murl">URL manifest</label>
+      <div class="row-inline">
+        <input id="murl" type="text" placeholder="https://esempio.addon/manifest.json" autocomplete="off" />
+        <button id="add" class="primary">Aggiungi</button>
+      </div>
+      <div id="addMsg"></div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">02</span>
+      <div><h2 class="step-title">Ordina le righe</h2>
+      <p class="step-sub">Ogni riga è un catalogo. Il numero è la posizione nella ricerca. Spegni quelle che non ti servono.</p></div>
+    </div>
+    <div id="list" class="sources"></div>
+    <div id="emptyState" class="empty">Nessuna fonte ancora. Aggiungine una qui sopra.</div>
+  </section>
+
+  <section class="step">
+    <div class="step-head">
+      <span class="step-num">03</span>
+      <div><h2 class="step-title">Genera e installa</h2>
+      <p class="step-sub">Crea il tuo addon personale con quest'ordine.</p></div>
+    </div>
+    <div class="card">
+      <label class="field" for="addonName">Nome dell'addon (facoltativo)</label>
+      <input id="addonName" type="text" placeholder="Ricerca Riordinata" autocomplete="off" />
+      <div style="height:12px"></div>
+      <button id="gen" class="primary">Genera URL d'installazione</button>
+      <div id="out"></div>
+    </div>
+    <p class="note" style="margin-top:16px">Dopo aver installato questo addon, vai al passo <a href="/setup.html">2 · Disattiva i doppioni</a> per togliere la ricerca dagli addon originali, altrimenti vedrai le righe doppie.</p>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let rows = []; // {uid_up, utype, type, name, src, srcName, on}
+
+function b64url(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin=''; for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function isSearchable(cat){
+  if (Array.isArray(cat.extra)) return cat.extra.some(e => e && e.name === 'search');
+  if (Array.isArray(cat.extraSupported)) return cat.extraSupported.includes('search');
+  return false;
+}
+function banner(el, kind, html){ el.innerHTML = '<div class="banner '+kind+'">'+html+'</div>'; }
+
+async function addAddon(){
+  const url = $('#murl').value.trim();
+  const msg = $('#addMsg');
+  if (!url){ banner(msg,'err','Inserisci un URL.'); return; }
+  banner(msg,'warn','Leggo il manifest…');
+  try {
+    const r = await fetch('/api/manifest?url=' + encodeURIComponent(url));
+    const m = await r.json();
+    if (m.error) throw new Error(m.error);
+    const cats = Array.isArray(m.catalogs) ? m.catalogs.filter(isSearchable) : [];
+    if (!cats.length){ banner(msg,'warn','Questo addon non ha cataloghi con ricerca. Niente da aggiungere.'); return; }
+    let added = 0;
+    for (const c of cats){
+      const key = url+'|'+c.type+'|'+c.id;
+      if (rows.some(x => x._key === key)) continue;
+      rows.push({
+        _key: key,
+        uid_up: c.id,
+        utype: c.type,
+        type: c.type,
+        name: c.name || (m.name+' '+c.type),
+        src: url,
+        srcName: m.name || '(addon)',
+        on: true,
+      });
+      added++;
+    }
+    $('#murl').value = '';
+    banner(msg,'ok','Aggiunti '+added+' cataloghi da “'+(m.name||'addon')+'”.');
+    render();
+  } catch(e){
+    banner(msg,'err','Non riesco a leggere questo addon: '+e.message);
+  }
+}
+
+function move(i, d){
+  const j = i + d;
+  if (j < 0 || j >= rows.length) return;
+  [rows[i], rows[j]] = [rows[j], rows[i]];
+  render();
+}
+function render(){
+  const list = $('#list');
+  $('#emptyState').style.display = rows.length ? 'none' : 'block';
+  list.innerHTML = '';
+  rows.forEach((row, i) => {
+    const el = document.createElement('div');
+    el.className = 'src' + (row.on ? '' : ' off');
+    el.innerHTML = `
+      <div class="rank">${String(i+1).padStart(2,'0')}</div>
+      <div>
+        <div class="src-name"><input data-i="${i}" class="nm" type="text" value="${row.name.replace(/"/g,'&quot;')}" /></div>
+        <div class="src-meta">${row.srcName} · ${row.utype}/${row.uid_up}</div>
+      </div>
+      <div class="src-ctrls">
+        <span class="tag">${row.type}</span>
+        <button class="icon" data-up="${i}" title="Su">↑</button>
+        <button class="icon" data-down="${i}" title="Giù">↓</button>
+        <button class="icon ghost" data-toggle="${i}" title="Accendi/spegni">${row.on ? '◉' : '◯'}</button>
+        <button class="icon ghost" data-del="${i}" title="Rimuovi">✕</button>
+      </div>`;
+    list.appendChild(el);
+  });
+  list.querySelectorAll('input.nm').forEach(inp => inp.oninput = e => { rows[+e.target.dataset.i].name = e.target.value; });
+  list.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1));
+  list.querySelectorAll('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, +1));
+  list.querySelectorAll('[data-toggle]').forEach(b => b.onclick = () => { const i=+b.dataset.toggle; rows[i].on=!rows[i].on; render(); });
+  list.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del,1); render(); });
+}
+
+function generate(){
+  const out = $('#out');
+  const active = rows.filter(r => r.on);
+  if (!active.length){ banner(out,'err','Accendi almeno una fonte.'); return; }
+  const cfg = {
+    id: Math.random().toString(36).slice(2,8),
+    name: ($('#addonName').value.trim() || 'Ricerca Riordinata'),
+    catalogs: active.map((r, i) => ({
+      uid: 'c' + i, name: r.name, type: r.type,
+      src: r.src, utype: r.utype, uid_up: r.uid_up,
+    })),
+  };
+  const blob = b64url(JSON.stringify(cfg));
+  const installUrl = location.origin + '/' + blob + '/manifest.json';
+  const deep = 'stremio://' + installUrl.replace(/^https?:\/\//, '');
+  const web = 'https://web.stremio.com/#/addons?addon=' + encodeURIComponent(installUrl);
+  out.innerHTML = `
+    <div class="output">
+      <div class="note"><strong>Il tuo addon è pronto.</strong> Installalo, poi disattiva i doppioni al passo 2.</div>
+      <div class="url-box">${installUrl}</div>
+      <div class="btn-row">
+        <button class="primary" id="copyUrl">Copia URL</button>
+        <a href="${deep}"><button>Apri in Stremio (app)</button></a>
+        <a href="${web}" target="_blank" rel="noopener"><button class="ghost">Apri in Stremio Web</button></a>
+      </div>
+    </div>`;
+  $('#copyUrl').onclick = () => { navigator.clipboard.writeText(installUrl); $('#copyUrl').textContent='Copiato ✓'; };
+}
+
+$('#add').onclick = addAddon;
+$('#murl').addEventListener('keydown', e => { if (e.key === 'Enter') addAddon(); });
+$('#gen').onclick = generate;
+render();
+</script>
+</body>
+</html>

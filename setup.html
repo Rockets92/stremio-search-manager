@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ricerca Riordinata · Disattiva i doppioni</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Stremio · Ricerca Riordinata</p>
+    <h1>Togli la ricerca dagli addon originali.</h1>
+    <p class="lede">Così solo il tuo addon riordinato risponderà alla ricerca, senza righe doppie. Gli addon restano installati e la Home non cambia. Tutto è reversibile reinstallandoli.</p>
+    <nav class="tabs">
+      <a class="tab" href="/">1 · Ordina</a>
+      <a class="tab" href="/setup.html" aria-current="page">2 · Disattiva i doppioni</a>
+    </nav>
+  </header>
+
+  <div class="banner warn">
+    Le tue credenziali vengono usate dal tuo browser per parlare <strong>solo</strong> con l'API ufficiale di Stremio (api.strem.io). Non passano da questo server né vengono salvate. Fai comunque un backup al passo successivo.
+  </div>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">01</span>
+      <div><h2 class="step-title">Accedi</h2>
+      <p class="step-sub">Con email e password, oppure con una AuthKey se preferisci non digitare la password.</p></div>
+    </div>
+    <div class="card">
+      <label class="field" for="email">Email Stremio</label>
+      <input id="email" type="email" autocomplete="username" placeholder="tu@esempio.it" />
+      <div style="height:10px"></div>
+      <label class="field" for="pass">Password</label>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <div style="height:12px"></div>
+      <button id="login" class="primary">Accedi e carica gli addon</button>
+      <hr class="sep" style="margin:20px 0" />
+      <label class="field" for="authkey">…oppure incolla una AuthKey</label>
+      <div class="row-inline">
+        <input id="authkey" type="text" placeholder="authKey" autocomplete="off" />
+        <button id="useKey">Usa</button>
+      </div>
+      <div id="authMsg"></div>
+    </div>
+  </section>
+
+  <section class="step" id="manageStep" style="display:none">
+    <div class="step-head"><span class="step-num">02</span>
+      <div><h2 class="step-title">Scegli a chi togliere la ricerca</h2>
+      <p class="step-sub">Spunta gli addun di cui hai messo le fonti nel passo 1. Scarica prima il backup.</p></div>
+    </div>
+    <div class="card">
+      <div class="btn-row" style="margin-bottom:14px">
+        <button id="backup" class="ghost">Scarica backup</button>
+        <span class="note muted" id="backupNote" style="align-self:center"></span>
+      </div>
+      <div id="addonList" class="sources"></div>
+      <div style="height:16px"></div>
+      <button id="apply" class="primary" disabled>Applica (togli la ricerca ai selezionati)</button>
+      <div id="applyMsg"></div>
+      <p class="note muted" style="margin-top:14px">Dopo aver applicato, riavvia Stremio per vedere il cambiamento. Per annullare: reinstalla l'addon dal suo URL originale e la ricerca torna.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const API = 'https://api.strem.io/api/';
+let authKey = null;
+let addons = [];   // collezione completa
+let didBackup = false;
+
+function banner(el, kind, html){ el.innerHTML = '<div class="banner '+kind+'">'+html+'</div>'; }
+function isProtected(a){ return !!(a.flags && (a.flags.protected || a.flags.official === true && a.flags.protected)); }
+function hasSearch(a){
+  const cats = (a.manifest && a.manifest.catalogs) || [];
+  return cats.some(c =>
+    (Array.isArray(c.extra) && c.extra.some(e => e && e.name === 'search')) ||
+    (Array.isArray(c.extraSupported) && c.extraSupported.includes('search')));
+}
+
+async function apiPost(method, body){
+  const r = await fetch(API + method, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+async function login(){
+  const email = $('#email').value.trim();
+  const pass = $('#pass').value;
+  const msg = $('#authMsg');
+  if (!email || !pass){ banner(msg,'err','Inserisci email e password.'); return; }
+  banner(msg,'warn','Accesso in corso…');
+  try {
+    const data = await apiPost('login', { email, password: pass });
+    const key = data && data.result && data.result.authKey;
+    if (!key) throw new Error((data && data.error && data.error.message) || 'credenziali non valide');
+    authKey = key;
+    $('#pass').value = '';
+    await loadAddons();
+  } catch(e){
+    banner(msg,'err','Accesso fallito: '+e.message+'. Se il problema è il CORS, prova con la AuthKey.');
+  }
+}
+
+async function useKey(){
+  const k = $('#authkey').value.trim();
+  const msg = $('#authMsg');
+  if (!k){ banner(msg,'err','Incolla una AuthKey.'); return; }
+  authKey = k;
+  await loadAddons();
+}
+
+async function loadAddons(){
+  const msg = $('#authMsg');
+  banner(msg,'warn','Carico la collezione…');
+  try {
+    const data = await apiPost('addonCollectionGet', { type:'AddonCollectionGet', authKey, update:true });
+    const list = data && data.result && data.result.addons;
+    if (!Array.isArray(list)) throw new Error((data && data.error && data.error.message) || 'risposta inattesa');
+    addons = list;
+    banner(msg,'ok','Trovati '+addons.length+' addon.');
+    $('#manageStep').style.display = 'block';
+    renderAddons();
+  } catch(e){
+    banner(msg,'err','Non riesco a caricare gli addon: '+e.message);
+  }
+}
+
+function renderAddons(){
+  const box = $('#addonList');
+  box.innerHTML = '';
+  addons.forEach((a, i) => {
+    const name = (a.manifest && a.manifest.name) || a.transportName || '(senza nome)';
+    const prot = isProtected(a);
+    const search = hasSearch(a);
+    const el = document.createElement('label');
+    el.className = 'checkline';
+    const disabled = prot || !search;
+    el.innerHTML = `
+      <input type="checkbox" data-i="${i}" ${disabled ? 'disabled' : ''} />
+      <div style="flex:1">
+        <div class="nm">${name}</div>
+        <div class="meta">${prot ? 'protetto · non modificabile' : (search ? 'ha la ricerca' : 'nessuna ricerca')}</div>
+        <div class="meta" style="color:var(--ink-mut)">${a.transportUrl || ''}</div>
+      </div>
+      ${search && !prot ? '<span class="tag">ricerca</span>' : ''}`;
+    box.appendChild(el);
+  });
+  box.querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => {
+    const any = [...box.querySelectorAll('input:checked')].length > 0;
+    $('#apply').disabled = !any || !didBackup;
+    refreshApplyHint();
+  });
+}
+
+function refreshApplyHint(){
+  if (!didBackup) $('#backupNote').textContent = 'Scarica il backup per abilitare “Applica”.';
+}
+
+function downloadBackup(){
+  const blob = new Blob([JSON.stringify(addons, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stremio-addons-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  didBackup = true;
+  $('#backupNote').textContent = 'Backup scaricato ✓';
+  const any = [...$('#addonList').querySelectorAll('input:checked')].length > 0;
+  $('#apply').disabled = !any;
+}
+
+function stripSearch(manifest){
+  const m = JSON.parse(JSON.stringify(manifest));
+  (m.catalogs || []).forEach(c => {
+    if (Array.isArray(c.extra)) c.extra = c.extra.filter(e => !(e && e.name === 'search'));
+    if (Array.isArray(c.extraSupported)) c.extraSupported = c.extraSupported.filter(x => x !== 'search');
+    if (Array.isArray(c.extraRequired)) c.extraRequired = c.extraRequired.filter(x => x !== 'search');
+  });
+  return m;
+}
+
+async function apply(){
+  const msg = $('#applyMsg');
+  const idxs = [...$('#addonList').querySelectorAll('input:checked')].map(c => +c.dataset.i);
+  if (!idxs.length){ banner(msg,'err','Non hai selezionato nessun addon.'); return; }
+  banner(msg,'warn','Applico le modifiche…');
+  const next = addons.map((a, i) => {
+    if (!idxs.includes(i)) return a;
+    return { ...a, manifest: stripSearch(a.manifest) };
+  });
+  try {
+    const data = await apiPost('addonCollectionSet', { type:'AddonCollectionSet', authKey, addons: next });
+    if (data && data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    addons = next;
+    banner(msg,'ok','Fatto su '+idxs.length+' addon. Riavvia Stremio per applicare. La Home resta invariata.');
+    renderAddons();
+    $('#apply').disabled = true;
+  } catch(e){
+    banner(msg,'err','Modifica non riuscita: '+e.message);
+  }
+}
+
+$('#login').onclick = login;
+$('#useKey').onclick = useKey;
+$('#backup').onclick = downloadBackup;
+$('#apply').onclick = apply;
+refreshApplyHint();
+</script>
+</body>
+</html>

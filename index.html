@@ -48,7 +48,7 @@
   <section class="step" id="orderStep" style="display:none">
     <div class="step-head"><span class="step-num">02</span>
       <div><h2 class="step-title">Ordina le righe della ricerca</h2>
-      <p class="step-sub">Il numero è la posizione. Trascina con ↑ ↓, rinomina, spegni quelle che non vuoi.</p></div>
+      <p class="step-sub">Il numero è la posizione. Trascina con ↑ ↓, rinomina, spegni quelle che non vuoi: le righe spente spariscono del tutto dalla ricerca di Stremio.</p></div>
     </div>
     <div id="list" class="sources"></div>
     <div id="warnProtected"></div>
@@ -200,18 +200,19 @@ function stripSearch(manifest){
 async function apply(){
   const msg = $('#applyMsg');
   const active = rows.filter(r => r.on);
-  if (!active.length){ banner(msg,'err','Accendi almeno una riga.'); return; }
   if (!didBackup){ banner(msg,'err','Scarica prima il backup.'); return; }
   banner(msg,'warn','Applico le modifiche…');
 
   // 1) configurazione dell'aggregatore (solo righe accese, nell'ordine attuale)
+  let aggDescriptor = null, installUrl = null;
+  if (active.length){
   const cfg = {
     id: Math.random().toString(36).slice(2,8),
     name: ($('#addonName').value.trim() || 'Ricerca Riordinata'),
     catalogs: active.map((r,i) => ({ uid:'c'+i, name:r.name, type:r.type, src:r.src, utype:r.utype, uid_up:r.uid_up })),
   };
   const blob = b64url(JSON.stringify(cfg));
-  const installUrl = location.origin + '/' + blob + '/manifest.json';
+  installUrl = location.origin + '/' + blob + '/manifest.json';
   const types = [...new Set(cfg.catalogs.map(c=>c.type))];
   const aggManifest = {
     id: 'com.cloudflare.ricerca-riordinata.'+cfg.id, version:'1.0.0', name: cfg.name,
@@ -220,27 +221,33 @@ async function apply(){
     catalogs: cfg.catalogs.map(c => ({ type:c.type, id:c.uid, name:c.name, extra:[{name:'search',isRequired:true}] })),
     behaviorHints:{ configurable:true, configurationRequired:false },
   };
-  const aggDescriptor = { transportUrl: installUrl, transportName: cfg.name, manifest: aggManifest, flags:{} };
+  aggDescriptor = { transportUrl: installUrl, transportName: cfg.name, manifest: aggManifest, flags:{} };
+  }
 
-  // 2) addon di provenienza a cui togliere la ricerca
-  const sourceIdx = new Set(active.map(r => r.addonIdx));
+  // 2) tolgo la ricerca a TUTTE le fonti gestite, anche a quelle con le righe spente:
+  //    una riga spenta non entra nell'aggregatore, quindi sparisce del tutto dalla ricerca di Stremio
+  const sourceUrls = new Set(rows.map(r => r.src));
 
-  // 3) nuova collezione: rimuovo vecchi aggregatori di questo dominio, tolgo la ricerca alle fonti, aggiungo l'aggregatore
+  // 3) nuova collezione: tolgo la ricerca alle fonti, rimuovo vecchi aggregatori di questo dominio, aggiungo l'aggregatore
   const next = collection
-    .filter(a => !(a.transportUrl && a.transportUrl.startsWith(location.origin)))
-    .map((a, idx) => sourceIdx.has(idx) ? { ...a, manifest: stripSearch(a.manifest) } : a);
-  next.push(aggDescriptor);
+    .map(a => sourceUrls.has(a.transportUrl) ? { ...a, manifest: stripSearch(a.manifest) } : a)
+    .filter(a => !(a.transportUrl && a.transportUrl.startsWith(location.origin)));
+  if (aggDescriptor) next.push(aggDescriptor);
 
   try {
     const data = await apiPost('addonCollectionSet', { type:'AddonCollectionSet', authKey, addons: next });
     if (data && data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     collection = next;
+    $('#apply').disabled = true;
+    if (!installUrl){
+      msg.innerHTML = '<div class="banner ok"><strong>Fatto.</strong> Tutte le righe erano spente: ho tolto la ricerca alle fonti senza installare alcun aggregatore. <strong>Riavvia Stremio.</strong></div>';
+      return;
+    }
     const deep = 'stremio://' + installUrl.replace(/^https?:\/\//,'');
-    msg.innerHTML = '<div class="banner ok"><strong>Fatto.</strong> Ricerca tolta agli originali e addon riordinato installato. <strong>Riavvia Stremio</strong> per vederlo.</div>'
+    msg.innerHTML = '<div class="banner ok"><strong>Fatto.</strong> Ricerca tolta agli originali (anche alle righe spente) e addon riordinato installato. <strong>Riavvia Stremio</strong> per vederlo.</div>'
       + '<div class="output"><div class="note">Se l\u0027addon non comparisse, installalo a mano:</div><div class="url-box">'+installUrl+'</div>'
       + '<div class="btn-row"><a href="'+deep+'"><button>Apri in Stremio</button></a><button id="copyUrl" class="ghost">Copia URL</button></div></div>';
     const cp = document.getElementById('copyUrl'); if (cp) cp.onclick = () => { navigator.clipboard.writeText(installUrl); cp.textContent='Copiato ✓'; };
-    $('#apply').disabled = true;
   } catch(e){ banner(msg,'err','Modifica non riuscita: '+e.message+'. La tua collezione non è stata cambiata; puoi ripristinare dal backup.'); }
 }
 

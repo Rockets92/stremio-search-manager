@@ -43,6 +43,10 @@ Apri `https://tuo-progetto.pages.dev/`:
 Il pulsante fa due cose insieme: toglie la ricerca agli addon originali (così niente righe
 doppie) e installa il tuo addon riordinato nella collezione. La Home resta identica.
 
+Le righe **spente** vengono escluse del tutto: la ricerca viene tolta anche ai loro addon
+originali e non entrano nell'aggregatore. Utile per fonti che non vuoi nella ricerca (es. un
+addon di canali TV live) — oltre a sparire, non rallentano più la ricerca.
+
 ---
 
 ## Note importanti
